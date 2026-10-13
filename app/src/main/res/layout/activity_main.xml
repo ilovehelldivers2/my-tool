@@ -60,6 +60,12 @@
             android:text="Unmute" />
 
         <Button
+            android:id="@+id/btnScale"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Hidden: Stretch" />
+
+        <Button
             android:id="@+id/btnHide"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

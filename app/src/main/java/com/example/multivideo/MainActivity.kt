@@ -1,6 +1,5 @@
 package com.example.multivideo
 
-import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -38,12 +37,16 @@ class MainActivity : AppCompatActivity() {
     private var muted = true
     private var uiHidden = false
 
+    // How videos are scaled while the UI is hidden: 0 = Fit, 1 = Stretch, 2 = Crop
+    private var scaleMode = 1
+
     private lateinit var grid: LinearLayout
     private lateinit var controls: View
     private lateinit var hint: TextView
     private lateinit var btnPause: Button
     private lateinit var btnMute: Button
     private lateinit var btnMode: Button
+    private lateinit var btnScale: Button
 
     private val picker =
         registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { result ->
@@ -75,11 +78,13 @@ class MainActivity : AppCompatActivity() {
         btnPause = findViewById(R.id.btnPause)
         btnMute = findViewById(R.id.btnMute)
         btnMode = findViewById(R.id.btnMode)
+        btnScale = findViewById(R.id.btnScale)
 
         findViewById<Button>(R.id.btnPick).setOnClickListener {
             picker.launch(arrayOf("video/*"))
         }
         btnMode.setOnClickListener { toggleMode() }
+        btnScale.setOnClickListener { cycleScale() }
         btnPause.setOnClickListener { togglePause() }
         findViewById<Button>(R.id.btnReset).setOnClickListener { resetAll() }
         btnMute.setOnClickListener { toggleMute() }
@@ -103,9 +108,32 @@ class MainActivity : AppCompatActivity() {
         return super.dispatchTouchEvent(ev)
     }
 
-    private fun currentResizeMode(): Int =
-        if (uiHidden) AspectRatioFrameLayout.RESIZE_MODE_ZOOM   // fill each cell, no gaps
-        else AspectRatioFrameLayout.RESIZE_MODE_FIT             // show whole video
+    private fun currentResizeMode(): Int {
+        if (!uiHidden) return AspectRatioFrameLayout.RESIZE_MODE_FIT   // show whole video
+        return when (scaleMode) {
+            1 -> AspectRatioFrameLayout.RESIZE_MODE_FILL   // stretch to fill, nothing cut off
+            2 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM   // crop to fill, no gaps
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT // keep whole video, black bars
+        }
+    }
+
+    private fun scaleLabel(): String = when (scaleMode) {
+        1 -> "Hidden: Stretch"
+        2 -> "Hidden: Crop"
+        else -> "Hidden: Fit"
+    }
+
+    private fun cycleScale() {
+        val wasCrop = scaleMode == 2
+        scaleMode = (scaleMode + 1) % 3
+        btnScale.text = scaleLabel()
+        // Crop needs a different kind of video surface (it clips properly), so rebuild when entering/leaving it.
+        if (wasCrop != (scaleMode == 2)) {
+            rebuild()
+        } else {
+            views.forEach { it.resizeMode = currentResizeMode() }
+        }
+    }
 
     private fun setUiHidden(hidden: Boolean) {
         uiHidden = hidden
@@ -128,14 +156,10 @@ class MainActivity : AppCompatActivity() {
                 )
             }
             repeat(cols) {
-                val pv = PlayerView(this).apply {
-                    useController = false
-                    setShutterBackgroundColor(Color.BLACK)
-                    resizeMode = currentResizeMode()
-                    layoutParams = LinearLayout.LayoutParams(
-                        0, ViewGroup.LayoutParams.MATCH_PARENT, 1f
-                    )
-                }
+                val layoutId =
+                    if (scaleMode == 2) R.layout.player_texture else R.layout.player_surface
+                val pv = layoutInflater.inflate(layoutId, row, false) as PlayerView
+                pv.resizeMode = currentResizeMode()
                 row.addView(pv)
                 views.add(pv)
 
